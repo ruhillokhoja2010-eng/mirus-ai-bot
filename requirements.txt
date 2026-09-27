@@ -1,2 +1,2 @@
 aiogram
-aiohttp
+g4f[all]
