@@ -1,74 +1,44 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-import g4f
+from google import genai
 
 BOT_TOKEN = "8644786361:AAEwDgQxcDUJ5i2E2M-E6ChiocPHeT3pUi8"
+GEMINI_API_KEY = "AIzaSyDbN873OpjyKpqt_JInt2OZVfn1uv5LMXI"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Список проверенных провайдеров для поочерёдной проверки
-PROVIDERS_TO_TRY = [
-    g4f.Provider.Blackbox,
-    g4f.Provider.DDG,
-    g4f.Provider.Pizzagpt,
-    g4f.Provider.Jaxx,
-]
+# Инициализируем официальный клиент Google Gemini
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-async def ask_g4f_with_fallback(user_message: str) -> str:
-    # 1. Сначала пробуем автовыбор лучшего провайдера
+async def get_ai_response(user_message: str) -> str:
     try:
-        response = await asyncio.wait_for(
-            g4f.ChatCompletion.create_async(
-                model=g4f.models.gpt_4o,
-                messages=[{"role": "user", "content": user_message}],
-            ),
-            timeout=8.0
+        # Вызываем молниеносную модель Gemini 2.5 Flash
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.5-flash",
+            contents=user_message,
         )
-        if response and len(str(response).strip()) > 0:
-            return str(response)
+        if response and response.text:
+            return response.text
     except Exception as e:
-        print(f"Основной автовыбор не сработал: {e}")
-
-    # 2. Если автовыбор подвёл, перебираем резервных провайдеров по очереди
-    for provider in PROVIDERS_TO_TRY:
-        try:
-            print(f"Пробуем резервный провайдер: {provider.__name__}")
-            response = await asyncio.wait_for(
-                g4f.ChatCompletion.create_async(
-                    model=g4f.models.gpt_35_turbo,
-                    messages=[{"role": "user", "content": user_message}],
-                    provider=provider
-                ),
-                timeout=6.0
-            )
-            if response and len(str(response).strip()) > 0:
-                return str(response)
-        except Exception as e:
-            print(f"Провайдер {provider.__name__} не ответил: {e}")
-            continue
-
-    # 3. Если вообще ни один провайдер не сработал
-    return "⚠️ Извини, сейчас бесплатные нейросети перегружены. Попробуй отправить запрос еще раз через минуту!"
+        print(f"Ошибка при запросе к Gemini: {e}")
+        
+    return "⚠️ Произошла ошибка при обращении к нейросети. Попробуй еще раз!"
 
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
-    await message.answer("Привет! Я MIRUS AI. Напиши мне любой вопрос, и я отвечу!")
+    await message.answer("Привет! Я MIRUS AI на базе Google Gemini. Задай мне любой вопрос!")
 
 @dp.message()
 async def handle_message(message: types.Message):
-    # Показываем статус "печатает..." в Telegram
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
-    
-    # Получаем ответ с перебором провайдеров
-    ai_text = await ask_g4f_with_fallback(message.text)
-    
-    # Всегда отправляем ответ
+    ai_text = await get_ai_response(message.text)
     await message.answer(ai_text)
 
 async def main():
-    print("Бот MIRUS AI успешно запущен!")
+    print("Бот MIRUS AI (Gemini) успешно запущен!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
