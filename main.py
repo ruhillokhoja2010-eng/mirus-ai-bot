@@ -1,6 +1,6 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
+from aiogram.filters import CommandStart
 import g4f
 
 BOT_TOKEN = "8644786361:AAEwDgQxcDUJ5i2E2M-E6ChiocPHeT3pUi8"
@@ -8,53 +8,53 @@ BOT_TOKEN = "8644786361:AAEwDgQxcDUJ5i2E2M-E6ChiocPHeT3pUi8"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-def get_ai_response(user_text: str) -> str:
+async def get_ai_response(user_message: str) -> str:
+    # 1. Автоматический выбор рабочего провайдера через g4f
     try:
-        response = g4f.ChatCompletion.create(
+        response = await g4f.ChatCompletion.create_async(
             model=g4f.models.gpt_4o,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Ты — MIRUS AI, умный и дружелюбный ассистент."
-                },
-                {"role": "user", "content": user_text}
-            ]
+            messages=[{"role": "user", "content": user_message}],
         )
-        if response:
+        if response and len(str(response)) > 0:
             return str(response)
-        return "Сервер нейросети временно не ответил. Попробуй еще раз!"
     except Exception as e:
-        return f"Произошла ошибка: {e}"
+        print(f"Ошибка основного вызова g4f: {e}")
 
-@dp.message(Command("start"))
+    # 2. Резервные провайдеры на случай сбоя
+    backup_providers = [
+        g4f.Provider.Blackbox,
+        g4f.Provider.DDG,
+        g4f.Provider.Pizzagpt,
+    ]
+
+    for provider in backup_providers:
+        try:
+            response = await g4f.ChatCompletion.create_async(
+                model=g4f.models.gpt_35_turbo,
+                messages=[{"role": "user", "content": user_message}],
+                provider=provider
+            )
+            if response and len(str(response)) > 0:
+                return str(response)
+        except Exception as e:
+            print(f"Ошибка резервного провайдера {provider}: {e}")
+            continue
+
+    return "К сожалению, все нейросети сейчас перегружены. Попробуй отправить запрос еще раз!"
+
+@dp.message(CommandStart())
 async def start_cmd(message: types.Message):
-    welcome_text = (
-        "Приветствую! Я MIRUS AI ⚡\n\n"
-        "💡 **Чем я могу помочь:**\n"
-        "• Отвечу на любые вопросы\n"
-        "• Помогу с учебой и кодом\n"
-        "• Напишу или переведу текст\n\n"
-        "Просто напиши мне свой вопрос ниже!"
-    )
-    await message.answer(welcome_text, parse_mode="Markdown")
+    await message.answer("Привет! Я MIRUS AI. Напиши мне любой вопрос, и я отвечу!")
 
 @dp.message()
 async def handle_message(message: types.Message):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
-    ai_response = await asyncio.to_thread(get_ai_response, message.text)
-    
-    if len(ai_response) > 4000:
-        for i in range(0, len(ai_response), 4000):
-            await message.answer(ai_response[i:i+4000])
-    else:
-        await message.answer(ai_response)
+    ai_text = await get_ai_response(message.text)
+    await message.answer(ai_text)
 
 async def main():
     print("Бот MIRUS AI успешно запущен!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        print("Бот остановлен.")
+    asyncio.run(main())
