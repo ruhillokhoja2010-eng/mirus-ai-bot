@@ -8,7 +8,7 @@ BOT_TOKEN = "8644786361:AAEwDgQxcDUJ5i2E2M-E6ChiocPHeT3pUi8"
 
 # Юзернейм твоего аккаунта и Telegram-канала
 MY_USERNAME = "ruhillokhoja"
-MY_CHANNEL = "bassmusicstj"  # Укажи юзернейм своего канала без @
+MY_CHANNEL = "mirus_ai"  # Укажи юзернейм своего канала без @
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
