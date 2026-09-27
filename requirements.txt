@@ -1,3 +1,2 @@
 aiogram
-g4f[all]
-curl_cffi
+google-genai
